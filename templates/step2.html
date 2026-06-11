@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Portail Éco MEDEF — Étape 2</title>
+    <!-- Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+            max-width: 960px; margin: 30px auto; padding: 0 20px;
+            color: #1a2332; background: #f7f9fc;
+        }
+        h1 { color: #003d7a; border-bottom: 3px solid #003d7a; padding-bottom: 10px; }
+        h2 { color: #003d7a; margin-top: 30px; }
+        .card {
+            background: white; border: 1px solid #d1d9e6;
+            border-radius: 8px; padding: 20px; margin: 15px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .recap-item { padding: 10px 0; border-bottom: 1px solid #eef2f7; }
+        .recap-item:last-child { border-bottom: none; }
+        .indicator-name { font-weight: 600; color: #003d7a; }
+        .freq-badge {
+            background: #e6f0fa; color: #003d7a;
+            padding: 3px 9px; border-radius: 12px;
+            font-size: 0.8em; font-weight: 600; margin-left: 8px;
+        }
+        .countries-list { color: #4a5a73; font-size: 0.92em; margin-top: 4px; }
+        .slider-row {
+            display: flex; align-items: center; gap: 15px; margin: 15px 0;
+        }
+        .slider-row label { min-width: 130px; font-weight: 600; }
+        input[type="range"] { flex: 1; accent-color: #003d7a; }
+        .year-display {
+            background: #003d7a; color: white;
+            padding: 6px 14px; border-radius: 6px;
+            font-family: monospace; font-size: 1.1em; min-width: 60px;
+            text-align: center;
+        }
+        .info-box {
+            background: #fff8e1; border-left: 4px solid #f59e0b;
+            padding: 12px 16px; margin: 20px 0; border-radius: 4px; font-size: 0.92em;
+        }
+        .actions { display: flex; justify-content: space-between; margin-top: 30px; }
+        button, .btn-back {
+            padding: 12px 30px; font-size: 1em; font-weight: 600;
+            border-radius: 6px; cursor: pointer; border: none;
+            text-decoration: none; display: inline-block;
+        }
+        button[type="submit"] { background: #003d7a; color: white; }
+        button[type="submit"]:hover { background: #002a55; }
+        .btn-back { background: #e6ecf3; color: #1a2332; }
+        .btn-back:hover { background: #d1d9e6; }
+        /* Graphiques */
+        .charts-section h2 { margin-top: 40px; }
+        .chart-card {
+            background: white; border: 1px solid #d1d9e6;
+            border-radius: 8px; padding: 16px; margin: 15px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .chart-title {
+            font-weight: 600; color: #003d7a;
+            font-size: 0.95em; margin-bottom: 8px;
+        }
+        .plotly-graph-div { width: 100%; }
+    </style>
+</head>
+<body>
+    <h1>🏛️ Portail Éco MEDEF</h1>
+    <p><strong>Étape 2 / 2</strong> — Configure la fenêtre temporelle et exporte.</p>
+
+    <h2>📋 Récapitulatif de ta sélection</h2>
+    <div class="card">
+        {% for indicator, rics in selections.items() %}
+        <div class="recap-item">
+            <span class="indicator-name">{{ indicator }}</span>
+            <span class="freq-badge">{{ freq_by_indicator[indicator] }}</span>
+            <div class="countries-list">
+                {{ rics|length }} pays :
+                {% for ric in rics %}
+                    {{ country_names[indicator].get(ric, ric) }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% set distinct_freqs = freq_by_indicator.values()|unique|list %}
+    {% if distinct_freqs|length > 1 %}
+    <div class="info-box">
+        ⚠️ <strong>Fréquences hétérogènes détectées</strong> ({{ distinct_freqs|join(', ') }}).<br>
+        Chaque indicateur sera exporté dans un onglet séparé avec sa fréquence native.
+    </div>
+    {% endif %}
+
+    <h2>📅 Fenêtre temporelle</h2>
+    <form method="post" action="/download">
+        <div class="card">
+            <div class="slider-row">
+                <label for="year_start">Année de début</label>
+                <input type="range" id="year_start" name="year_start"
+                       min="{{ year_min }}" max="{{ year_max }}" value="{{ year_min }}"
+                       oninput="updateSliders()">
+                <span class="year-display" id="start_val">{{ year_min }}</span>
+            </div>
+            <div class="slider-row">
+                <label for="year_end">Année de fin</label>
+                <input type="range" id="year_end" name="year_end"
+                       min="{{ year_min }}" max="{{ year_max }}" value="{{ year_max }}"
+                       oninput="updateSliders()">
+                <span class="year-display" id="end_val">{{ year_max }}</span>
+            </div>
+            <p style="color:#6b7a90; font-size:0.9em; margin-top:15px;">
+                Plage disponible : <strong>{{ year_min }}</strong> – <strong>{{ year_max }}</strong>
+                (union des fenêtres temporelles de tous les indicateurs sélectionnés)
+            </p>
+        </div>
+
+        <div class="actions">
+            <a href="/" class="btn-back">← Retour</a>
+            <button type="submit">📥 Télécharger l'export Excel</button>
+        </div>
+    </form>
+
+    <!-- ── SECTION GRAPHIQUES ────────────────────────────────────────────── -->
+    <div class="charts-section">
+        <h2>📈 Aperçu des séries</h2>
+        {% for indicator, rics in selections.items() %}
+        <div class="chart-card">
+            <div class="chart-title">{{ indicator }}</div>
+            <div id="chart_{{ loop.index }}" class="plotly-graph-div" style="height:380px;"></div>
+        </div>
+        {% endfor %}
+    </div>
+<script>
+const chartsData = {{ charts_data | tojson }};
+const PALETTE = [
+    "#003d7a","#1a7fc1","#f59e0b","#10b981",
+    "#ef4444","#8b5cf6","#ec4899","#6b7280",
+    "#0891b2","#d97706"
+];
+
+const indicators = Object.keys(chartsData);
+
+indicators.forEach((ind, chartIdx) => {
+
+    // ── Traces ────────────────────────────────────────────────────────────
+    const traces = Object.values(chartsData[ind]).map((serie, i) => ({
+        type: "scatter",
+        mode: "lines",
+        name: serie.name,
+        x: serie.x,
+        y: serie.y,
+        line: { color: PALETTE[i % PALETTE.length], width: 2 },
+        connectgaps: false,
+        hovertemplate: `<b>%{fullData.name}</b><br>Année : %{x}<br>Valeur : %{y:,.2f}<extra></extra>`,
+    }));
+
+    // ── Layout ────────────────────────────────────────────────────────────
+    const layout = {
+    paper_bgcolor: "#f7f9fc",
+    plot_bgcolor:  "#ffffff",
+    margin: { t: 50, r: 30, b: 40, l: 55 },  // b réduit : plus de rangeslider
+
+    // ── Titre de l'indicateur en annotation (plus propre que yaxis.title) ──
+    annotations: [{
+        text: ind,                          // nom complet de l'indicateur
+        xref: "paper", yref: "paper",
+        x: 0, y: 1.06,                     // au-dessus du graphique, calé à gauche
+        xanchor: "left", yanchor: "bottom",
+        font: { size: 11, color: "#4a5a73" },
+        showarrow: false,
+    }],
+
+    // ── Axe X : pas de titre, juste les années ────────────────────────────
+    xaxis: {
+        title:    null,                     // supprimé
+        showgrid: true, gridcolor: "#e8edf4", gridwidth: 1,
+        zeroline: false,
+        tickfont: { size: 11, color: "#4a5a73" },
+        rangeslider: { visible: false },    // supprimé — c'était le cartouche gris
+    },
+
+    // ── Axe Y : pas de titre long vertical ───────────────────────────────
+    yaxis: {
+        title:      null,                   // supprimé, remplacé par annotation
+        showgrid:   true, gridcolor: "#e8edf4", gridwidth: 1,
+        zeroline:   true, zerolinecolor: "#c0cce0", zerolinewidth: 1.5,
+        tickfont:   { size: 11, color: "#4a5a73" },
+        automargin: true,
+    },
+
+    // ── Légende cliquable (natif Plotly) ──────────────────────────────────
+    legend: {
+        orientation: "h", x: 0.5, xanchor: "center", y: -0.08,
+        font: { size: 11 },
+        bgcolor: "rgba(247,249,252,0)",     // transparent — fond uni = propre
+        borderwidth: 0,
+    },
+
+    hovermode: "x unified",
+    hoverlabel: { bgcolor: "#003d7a", font: { color: "#fff", size: 12 } },
+};
+
+    // ── APPEL MANQUANT — c'était ton bug ──────────────────────────────────
+    Plotly.newPlot(`chart_${chartIdx + 1}`, traces, layout, { responsive: true });
+
+});
+
+function updateSliders() {
+    const yStart = parseInt(document.getElementById('year_start').value);
+    const yEnd   = parseInt(document.getElementById('year_end').value);
+
+    // Empêche start > end
+    if (yStart > yEnd) document.getElementById('year_end').value = yStart;
+
+    document.getElementById('start_val').textContent = yStart;
+    document.getElementById('end_val').textContent   = Math.max(yStart, yEnd);
+
+    indicators.forEach((_, i) => {
+        Plotly.relayout(`chart_${i + 1}`, { 'xaxis.range': [yStart, Math.max(yStart, yEnd)] });
+    });
+}
+</script>
+
+    
+</body>
+</html>

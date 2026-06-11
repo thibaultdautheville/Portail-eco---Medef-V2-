@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Portail Éco MEDEF — Étape 1</title>
+    <style>
+        body {
+            font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+            max-width: 1100px; margin: 30px auto; padding: 0 20px;
+            color: #1a2332; background: #f7f9fc;
+        }
+        h1 { color: #003d7a; border-bottom: 3px solid #003d7a; padding-bottom: 10px; }
+        .error {
+            background: #fde8e8; border-left: 4px solid #c81e1e;
+            padding: 12px 16px; margin: 20px 0; border-radius: 4px;
+        }
+        .indicator-card {
+            background: white; border: 1px solid #d1d9e6;
+            border-radius: 8px; padding: 20px; margin: 15px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .indicator-header {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 4px;
+        }
+        .freq-badge {
+            background: #e6f0fa; color: #003d7a;
+            padding: 4px 10px; border-radius: 12px;
+            font-size: 0.85em; font-weight: 600;
+        }
+        .countries-wrapper {
+            display: none;
+            margin-top: 14px; padding-top: 12px;
+            border-top: 1px solid #eef2f7;
+        }
+        .countries-grid {
+             display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-auto-flow: column;          /* remplit colonne par colonne */
+            grid-template-rows: repeat(var(--row-count), auto); /* défini par JS */
+            gap: 6px 20px;
+}
+        .country-item {
+            display: flex; align-items: center; padding: 4px 8px;
+            border-radius: 4px; transition: background 0.15s;
+        }
+        .country-item:hover { background: #f0f4f9; }
+        .country-item input { margin-right: 8px; }
+        .country-item label { cursor: pointer; flex: 1; font-size: 0.92em; }
+        .toggle-all {
+            font-size: 0.82em; color: #003d7a;
+            background: none; border: 1px solid #003d7a;
+            padding: 3px 9px; border-radius: 4px; cursor: pointer; margin-left: 10px;
+        }
+        .toggle-all:hover { background: #003d7a; color: white; }
+        .submit-bar {
+            position: sticky; bottom: 0; background: white;
+            padding: 15px; margin-top: 20px; border-top: 2px solid #003d7a;
+            text-align: right; box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+        }
+        button[type="submit"] {
+            background: #003d7a; color: white; border: none;
+            padding: 12px 30px; font-size: 1em; font-weight: 600;
+            border-radius: 6px; cursor: pointer;
+        }
+        button[type="submit"]:hover { background: #002a55; }
+        .indicator-checkbox { transform: scale(1.3); margin-right: 10px; }
+        .indicator-label { font-size: 1.1em; font-weight: 600; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🏛️ Portail Éco MEDEF</h1>
+    <p><strong>Étape 1 / 2</strong> — Sélectionne les indicateurs et les pays à exporter.</p>
+
+    {% if error %}<div class="error">⚠️ {{ error }}</div>{% endif %}
+
+    {% if not catalog %}
+        <p>Aucun indicateur trouvé dans <code>storage_excel/</code>.</p>
+    {% else %}
+    <form action="/configure" method="post">
+
+        {% for indicator, countries in catalog.items() %}
+        {# ── countries est déjà trié par _build_view() côté Python ── #}
+
+        <div class="indicator-card">
+
+            <div class="indicator-header">
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <input type="checkbox"
+                           name="indicators"
+                           value="{{ indicator }}"
+                           id="ind_{{ loop.index }}"
+                           class="indicator-checkbox"
+                           onchange="toggleCountries('{{ indicator }}', this.checked)">
+                    <label for="ind_{{ loop.index }}" class="indicator-label">
+                        {{ indicator }}
+                    </label>
+                    <span class="freq-badge">{{ freq_labels[indicator] }}</span>
+                </div>
+                <button type="button" class="toggle-all"
+                        onclick="toggleAll('{{ indicator }}', this)">
+                    Tout cocher
+                </button>
+            </div>
+
+            <div class="countries-wrapper"
+                 id="countries_{{ indicator|replace(' ','_')|replace('/','_') }}">
+                <div class="countries-grid">
+                    {% for ric in countries %}
+                    <div class="country-item">
+                        <input type="checkbox"
+                               name="country_pairs"
+                               value="{{ indicator }}::{{ ric }}"
+                               id="c_{{ loop.index0 }}_{{ indicator|replace(' ','_') }}"
+                               data-indicator="{{ indicator }}">
+                        <label for="c_{{ loop.index0 }}_{{ indicator|replace(' ','_') }}">
+                            {{ country_names[indicator].get(ric, ric) }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+        {% endfor %}
+
+        <div class="submit-bar">
+            <button type="submit">Continuer →</button>
+        </div>
+    </form>
+    {% endif %}
+
+<script>
+function toggleCountries(indicator, isChecked) {
+    const safeId = indicator.replace(/ /g, '_').replace(/\//g, '_');
+    const wrapper = document.getElementById('countries_' + safeId);
+    if (!wrapper) return;
+    wrapper.style.display = isChecked ? 'block' : 'none';
+    if (!isChecked) {
+        document.querySelectorAll(`input[data-indicator="${indicator}"]`)
+                .forEach(b => b.checked = false);
+    }
+}
+
+function toggleAll(indicator, btn) {
+    const boxes = document.querySelectorAll(`input[data-indicator="${indicator}"]`);
+    const allChecked = Array.from(boxes).every(b => b.checked);
+    boxes.forEach(b => b.checked = !allChecked);
+    btn.textContent = allChecked ? "Tout cocher" : "Tout décocher";
+    const parent = document.querySelector(`input[name="indicators"][value="${indicator}"]`);
+    if (parent) {
+        parent.checked = !allChecked;
+        toggleCountries(indicator, !allChecked);
+    }
+}
+
+document.querySelectorAll('input[name="country_pairs"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+        if (cb.checked) {
+            const ind = cb.dataset.indicator;
+            const parent = document.querySelector(`input[name="indicators"][value="${ind}"]`);
+            if (parent && !parent.checked) {
+                parent.checked = true;
+                toggleCountries(ind, true);
+            }
+        }
+    });
+});
+</script>
+</body>
+</html>
+
+<script>
+// Pour chaque grille de pays, calcule le nb de lignes nécessaires
+// et l'injecte en CSS custom property pour que grid-auto-flow:column fonctionne
+document.querySelectorAll(".countries-grid").forEach(grid => {
+    const count = grid.querySelectorAll(".country-item").length;
+    const cols  = 5;
+    // Math.ceil pour la dernière colonne incomplète
+    grid.style.setProperty("--row-count", Math.ceil(count / cols));
+});
+</script>

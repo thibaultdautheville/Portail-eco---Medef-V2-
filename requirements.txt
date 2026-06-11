@@ -1,0 +1,8 @@
+Flask
+gunicorn
+pandas
+openpyxl
+xlsxwriter
+numpy
+python-dotenv
+pyarrow
