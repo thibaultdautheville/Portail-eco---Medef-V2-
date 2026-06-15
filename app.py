@@ -583,16 +583,9 @@ for rule in app.url_map.iter_rules():
     print(f"  {sorted(rule.methods)} {rule.rule}")
 
 
-# In[ ]:
-
-
+# In[ ]
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    debug = os.environ.get("RENDER") is None
-    host = "0.0.0.0" if os.environ.get("RENDER") else "127.0.0.1"
-
-    app.run(host=host, port=port, debug=debug, use_reloader=False)
-
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
 
 # In[ ]:
 
