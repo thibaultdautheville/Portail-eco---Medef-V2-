@@ -241,7 +241,6 @@ def convert_to_annual(data: pd.DataFrame, freq: str) -> pd.DataFrame:
 
     return pd.DataFrame(rows)
 
-
 # ─── BLOC 6 : export Excel ───────────────────────────────────────────────────
 
 def build_excel_export(selections: list[dict], year_start: int, year_end: int) -> BytesIO:
@@ -255,6 +254,7 @@ def build_excel_export(selections: list[dict], year_start: int, year_end: int) -
 
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
 
+        # ── README ─────────────────────────────────────────────────────────
         readme_rows = [
             {"Champ": "Date d'export",      "Valeur": datetime.now().strftime("%Y-%m-%d %H:%M")},
             {"Champ": "Fenêtre temporelle", "Valeur": f"{year_start} – {year_end}"},
@@ -278,6 +278,7 @@ def build_excel_export(selections: list[dict], year_start: int, year_end: int) -
         ]
         pd.DataFrame(readme_rows).to_excel(writer, sheet_name="README", index=False)
 
+        # ── Boucle indicateurs ─────────────────────────────────────────────
         for sel in selections:
             ind            = sel["indicator"]
             data           = sel["data"]
@@ -296,7 +297,7 @@ def build_excel_export(selections: list[dict], year_start: int, year_end: int) -
             data = data[[time_col] + countries]
 
             rename_map = {ric: f"{ric_to_country.get(ric, ric)} ({ric})" for ric in countries}
-            data = data.rename(columns=rename_map)
+            data       = data.rename(columns=rename_map)
 
             years = data[time_col].apply(_extract_year)
             data  = data.loc[years.between(year_start, year_end)].copy()
@@ -307,19 +308,7 @@ def build_excel_export(selections: list[dict], year_start: int, year_end: int) -
 
             data.to_excel(writer, sheet_name=data_sheet, index=False)
 
-            # Filtre META sur les RIC sélectionnés uniquement
-
-def build_excel_export(payload, year_start, year_end):
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        used_names = set()
-        
-        for ind, countries in payload_dict.items():
-            # ... tout ton code de traitement ...
-            
-            data.to_excel(writer, sheet_name=data_sheet, index=False)
-
-            # ── META filtrée sur RIC sélectionnés ──────────────────────────
+            # ── META filtrée sur RIC sélectionnés uniquement ───────────────
             if not meta.empty and "RIC" in meta.columns:
                 meta_out = meta[meta["RIC"].astype(str).str.strip().isin(countries)].copy()
                 if meta_out.empty:
@@ -333,7 +322,7 @@ def build_excel_export(payload, year_start, year_end):
                            FREQ_FR.get(freq, freq),
                            datetime.now().strftime("%Y-%m-%d %H:%M")],
             })
-            if not meta.empty and "RIC" in meta.columns:
+            if not meta.empty and "RIC" in meta.columns and not meta_out.empty:
                 meta_out = pd.concat(
                     [meta_out, pd.DataFrame([{c: "" for c in meta_out.columns}]), extra],
                     ignore_index=True
@@ -342,69 +331,13 @@ def build_excel_export(payload, year_start, year_end):
                 meta_out = extra
 
             meta_out.to_excel(writer, sheet_name=meta_sheet, index=False)
-            # ── fin boucle ──────────────────────────────────────────────────
 
-        _style_workbook(writer)   # ← hors boucle, une seule fois
+        # ── Mise en forme finale (hors boucle) ─────────────────────────────
+        _style_workbook(writer)
 
     buffer.seek(0)
     return buffer
 
-
-
-def _style_workbook(writer: pd.ExcelWriter) -> None:
-    """En-têtes gras + fond bleu + largeurs auto."""
-    header_fill = PatternFill(fill_type="solid", fgColor="D9EAF7")
-    header_font = Font(bold=True)
-    for sheet_name in writer.book.sheetnames:
-        ws = writer.book[sheet_name]
-        ws.freeze_panes = "A2"
-        for cell in ws[1]:
-            cell.font      = header_font
-            cell.fill      = header_fill
-            cell.alignment = Alignment(horizontal="center")
-        for column_cells in ws.columns:
-            values = [str(c.value) if c.value is not None else "" for c in column_cells]
-            width  = min(max((len(v) for v in values), default=10) + 2, 50)
-            ws.column_dimensions[column_cells[0].column_letter].width = width
-
-
-# ─── BLOC 6bis : chargement indicateur depuis Parquet ────────────────────────
-
-@lru_cache(maxsize=64)
-def _load_indicator_cached(stem: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Charge DATA + META depuis les Parquet.
-    Cache LRU sur le stem (nom de fichier sans extension).
-    Invalider avec _load_indicator_cached.cache_clear() après migration.
-
-    Retourne (df_data, df_meta) — df_meta peut être vide.
-    """
-    data_path = DATA_DIR / f"{stem}.parquet"
-    meta_path = META_DIR / f"{stem}.meta.parquet"
-
-    df_data = pd.read_parquet(data_path, engine="pyarrow")
-
-    try:
-        df_meta = pd.read_parquet(meta_path, engine="pyarrow")
-    except Exception:
-        df_meta = pd.DataFrame()
-
-    return df_data, df_meta
-
-
-def load_indicator(indicator_name: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
-    """
-    Interface publique : charge un indicateur par son nom long.
-    Retourne (data, meta, freq).
-    """
-    catalog = scan_storage()
-    if indicator_name not in catalog:
-        raise KeyError(f"Indicateur inconnu : {indicator_name!r}")
-
-    info            = catalog[indicator_name]
-    df_data, df_meta = _load_indicator_cached(info["slug"])
-
-    return df_data, df_meta, info["frequency"]
 
 
 # ─── BLOC 7 : Flask routes ───────────────────────────────────────────────────
