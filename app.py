@@ -338,6 +338,29 @@ def build_excel_export(selections: list[dict], year_start: int, year_end: int) -
     buffer.seek(0)
     return buffer
 
+# ─── BLOC 6bis : chargement indicateur depuis Parquet ────────────────────────
+
+@lru_cache(maxsize=64)
+def _load_indicator_cached(stem: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Cache LRU sur le stem. Invalider avec _load_indicator_cached.cache_clear()."""
+    df_data = pd.read_parquet(DATA_DIR / f"{stem}.parquet", engine="pyarrow")
+    try:
+        df_meta = pd.read_parquet(META_DIR / f"{stem}.meta.parquet", engine="pyarrow")
+    except Exception:
+        df_meta = pd.DataFrame()
+    return df_data, df_meta
+
+
+def load_indicator(indicator_name: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+    """Interface publique : charge un indicateur par son nom (= stem dans catalog)."""
+    catalog = scan_storage()
+    if indicator_name not in catalog:
+        raise KeyError(f"Indicateur inconnu : {indicator_name!r}")
+    info = catalog[indicator_name]
+    df_data, df_meta = _load_indicator_cached(info["slug"])
+    return df_data, df_meta, info["frequency"]
+
+
 
 
 # ─── BLOC 7 : Flask routes ───────────────────────────────────────────────────
