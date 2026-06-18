@@ -164,7 +164,7 @@ def scan_storage() -> dict[str, dict]:
             time_min = time_max = (0, 0)
 
         # Nom de l'indicateur = colonne 'name' du catalog
-        indicator_name = str(row.name)
+        indicator_name = str(row.stem)
 
         result[indicator_name] = {
             "slug":           str(row.stem),
