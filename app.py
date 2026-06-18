@@ -332,7 +332,7 @@ else:
 meta_out.to_excel(writer, sheet_name=meta_sheet, index=False)
 
 
-            meta_out.to_excel(writer, sheet_name=meta_sheet, index=False)
+            
 
         _style_workbook(writer)
 
