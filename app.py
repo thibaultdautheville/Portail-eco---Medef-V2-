@@ -243,6 +243,24 @@ def convert_to_annual(data: pd.DataFrame, freq: str) -> pd.DataFrame:
 
 # ─── BLOC 6 : export Excel ───────────────────────────────────────────────────
 
+def _style_workbook(writer: pd.ExcelWriter) -> None:
+    """En-têtes gras + fond bleu D9EAF7 + largeurs auto sur tous les onglets."""
+    header_fill = PatternFill(fill_type="solid", fgColor="D9EAF7")
+    header_font = Font(bold=True)
+    for sheet_name in writer.book.sheetnames:
+        ws = writer.book[sheet_name]
+        ws.freeze_panes = "A2"
+        for cell in ws[1]:
+            cell.font      = header_font
+            cell.fill      = header_fill
+            cell.alignment = Alignment(horizontal="center")
+        for column_cells in ws.columns:
+            values = [str(c.value) if c.value is not None else "" for c in column_cells]
+            width  = min(max((len(v) for v in values), default=10) + 2, 50)
+            ws.column_dimensions[column_cells[0].column_letter].width = width
+
+
+
 def build_excel_export(selections: list[dict], year_start: int, year_end: int) -> BytesIO:
     """
     Construit le .xlsx final.
